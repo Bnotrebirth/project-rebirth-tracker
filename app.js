@@ -438,3 +438,28 @@ setInterval(() => {
   renderAll();
   refresh();
 })();
+
+// 👀 Hidden easter egg — type "gr3my" anywhere on the page to reveal the message.
+(function () {
+  const SECRET = 'gr3my';
+  const egg = document.getElementById('easterEgg');
+  if (!egg) return;
+  let buffer = '';
+  let hideTimer = null;
+
+  document.addEventListener('keydown', (e) => {
+    // Ignore pure modifier keys (Shift, Ctrl, etc.)
+    if (e.key.length > 1) return;
+    buffer = (buffer + e.key.toLowerCase()).slice(-SECRET.length);
+    if (buffer !== SECRET) return;
+
+    buffer = '';
+    egg.classList.add('show');
+    egg.setAttribute('aria-hidden', 'false');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      egg.classList.remove('show');
+      egg.setAttribute('aria-hidden', 'true');
+    }, 4000);
+  });
+})();
