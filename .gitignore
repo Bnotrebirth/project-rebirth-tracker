@@ -1,0 +1,11 @@
+# deps / tooling
+node_modules/
+
+# Cloudflare deploy leftovers (unused — signup was blocked)
+site/
+worker.js
+wrangler.toml
+package-lock.json
+
+# local logs
+*.log

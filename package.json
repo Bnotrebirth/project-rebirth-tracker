@@ -1,0 +1,16 @@
+{
+  "name": "project-rebirth-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Project Rebirth live server & player tracker on Cloudflare Workers",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "kv:create": "wrangler kv namespace create HISTORY",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.1"
+  }
+}
