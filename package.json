@@ -7,7 +7,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "test": "node --test test/*.test.js",
     "kv:create": "wrangler kv namespace create HISTORY",
+    "secret:webhook": "wrangler secret put DISCORD_WEBHOOK_URL",
+    "bot": "npm --prefix bot start",
+    "bot:register": "npm --prefix bot run register",
     "tail": "wrangler tail"
   },
   "devDependencies": {

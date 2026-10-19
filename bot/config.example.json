@@ -1,0 +1,6 @@
+{
+  "DISCORD_TOKEN": "paste-bot-token-here",
+  "CLIENT_ID": "paste-application-id-here",
+  "GUILD_ID": "paste-project-rebirth-test-server-id-here",
+  "WORKER_URL": "https://project-rebirth-tracker.YOUR_SUBDOMAIN.workers.dev"
+}

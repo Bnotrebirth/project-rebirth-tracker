@@ -1,11 +1,16 @@
 # deps / tooling
 node_modules/
+dist/
 
-# Cloudflare deploy leftovers (unused — signup was blocked)
-site/
-worker.js
-wrangler.toml
-package-lock.json
+# secrets — never commit
+# (.dev.vars is where GAME_API_URL lives on this machine: wrangler reads it
+#  for `npm run dev`, collect.py reads it for local sampling)
+.dev.vars
+.env
+bot/config.json
+
+# wrangler local state
+.wrangler/
 
 # local logs
 *.log

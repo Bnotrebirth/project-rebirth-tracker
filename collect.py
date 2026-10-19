@@ -2,15 +2,20 @@
 """
 Project Rebirth — player-count history collector.
 
-Polls the public Mothership API every 60s, sums the live player count across
-all online deployments, and appends a sample to history.json. Run this on
-whatever machine hosts the site and the chart fills with REAL data for every
+Polls the game's server-browser endpoint every 60s, sums the live player
+count across all online deployments, and appends a sample to history.json.
+Run it wherever you like and the chart fills with REAL data for every
 visitor.
 
+The endpoint itself is configuration, never source: it comes from the
+GAME_API_URL environment variable (a repository secret in CI), or from a
+gitignored .dev.vars / .env file when running by hand.
+
 Usage:
-    python collect.py                # poll forever, write history.json here
-    python collect.py --once         # single sample then exit (for cron)
-    python collect.py --port 8080    # also serve the site on :8080
+    export GAME_API_URL="..."     # or: put it in .dev.vars / .env
+    python collect.py             # poll forever, write history.json here
+    python collect.py --once      # single sample then exit (for cron)
+    python collect.py --port 8080 # also serve the site on :8080
 
 history.json shape:  { "samples": [ {"t": 1760000000000, "v": 34}, ... ] }
   t = epoch ms, v = total players online. Older than 30 days are pruned.
@@ -24,11 +29,36 @@ import time
 import urllib.request
 from datetime import datetime, timezone
 
-API = "https://api.cosmovr.org/v1/stations?include_deployments=true"
+API = os.environ.get("GAME_API_URL", "").strip()
 HERE = os.path.dirname(os.path.abspath(__file__))
 HIST = os.path.join(HERE, "history.json")
 INTERVAL = 60          # seconds between samples
 MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000   # keep 30 days
+
+
+def _read_local_secret():
+    """
+    Fall back to a gitignored .dev.vars / .env (KEY=VALUE, optional quotes)
+    so the endpoint never has to live in a committed file.
+    """
+    for name in (".dev.vars", ".env"):
+        path = os.path.join(HERE, name)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("GAME_API_URL") and "=" in line:
+                        _, _, value = line.partition("=")
+                        value = value.strip().strip('"').strip("'")
+                        if value:
+                            return value
+        except OSError:
+            continue
+    return ""
+
+
+if not API:
+    API = _read_local_secret()
 
 
 def _ssl_context():
@@ -128,6 +158,14 @@ def serve(port):
 
 
 if __name__ == "__main__":
+    if not API:
+        print(
+            "GAME_API_URL is not set — export it (in CI: repository secret) or "
+            "put it in a gitignored .dev.vars / .env file next to this script.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     if "--port" in sys.argv:
         try:
             port = int(sys.argv[sys.argv.index("--port") + 1])

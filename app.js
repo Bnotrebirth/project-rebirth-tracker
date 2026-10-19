@@ -1,17 +1,25 @@
 /* =========================================================================
    Project Rebirth — Live Statistics
-   Backend: Mothership API (https://api.cosmovr.org)
 
-   Public endpoints:
-     GET /v1/stations?include_deployments=true&include_config=true&page=&page_size=
-     GET /v1/region
-     GET /health
+   This page has no idea where the game backend lives, and never contacts it.
+   Everything on screen comes from the watcher worker's own API:
 
-   The API only exposes the CURRENT player count, so this page records a
-   sample every refresh (localStorage) and charts that history.
+     GET /api/state      live snapshot: servers, regions, totals, continent
+     GET /history.json   30 days of 1-minute player-count samples
+
+   The worker polls the backend on a cron and caches it in KV, so the only
+   hosts this page ever talks to are itself and the worker.
    ========================================================================= */
 
-const API_BASE = 'https://api.cosmovr.org';
+// GitHub Pages can't proxy anything, so it has to be told where the worker
+// lives — that is this page's one and only upstream. Served by the worker
+// itself (or on localhost) the constant collapses to '' and every fetch is
+// same-origin, so nothing at all is exposed.
+const WORKER_ORIGIN = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ||
+  location.hostname.endsWith('workers.dev')
+  ? ''
+  : 'https://project-rebirth-tracker.project-rebirth-tracker.workers.dev';
+
 const REFRESH_MS = 30_000;
 const SAMPLE_MS = 60_000;           // one history point per minute max
 const HISTORY_KEY = 'pr_player_history_v1';
@@ -21,7 +29,7 @@ const RANGE_MS = { '24h': 24 * 3600e3, '7d': 7 * 24 * 3600e3, '30d': 30 * 24 * 3
 
 const state = {
   stations: [],
-  region: null,
+  continent: null,
   range: '24h',
   regionFilter: 'ALL',
   search: '',
@@ -34,15 +42,15 @@ const state = {
 };
 
 // ---------------- history ----------------
-// Preferred source: history.json written by collect.py (real, server-side,
-// shared by every visitor). Fallback: localStorage, recorded while the tab
-// is open. Set true once we confirm the server file loaded.
+// Preferred source: /history.json served by the worker out of KV (real,
+// server-side, shared by every visitor). Fallback: localStorage, recorded
+// while the tab is open. Set true once we confirm the server file loaded.
 state.historyFromServer = false;
 
 async function loadHistoryFromServer() {
   try {
-    // cache-bust so we always see the collector's newest samples
-    const res = await fetch(`history.json?_=${Date.now()}`, { cache: 'no-store' });
+    // cache-bust so we always see the worker's newest samples
+    const res = await fetch(`${WORKER_ORIGIN}/history.json?_=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) return null;
     const json = await res.json();
     const arr = Array.isArray(json) ? json : json?.samples;
@@ -50,7 +58,7 @@ async function loadHistoryFromServer() {
     // keep only well-formed {t,v} points
     return arr.filter((s) => s && Number.isFinite(s.t) && Number.isFinite(s.v));
   } catch {
-    return null; // file missing (not running collect.py) or blocked
+    return null; // no history yet (KV empty) or blocked
   }
 }
 
@@ -93,50 +101,63 @@ const els = {
 };
 
 // ---------------- data ----------------
-async function fetchStations() {
-  const out = [];
-  let page = 1, pages = 1;
-  do {
-    const res = await fetch(
-      `${API_BASE}/v1/stations?include_deployments=true&include_config=true&page=${page}&page_size=100`,
-      { cache: 'no-store' }
-    );
-    if (!res.ok) throw new Error(`API returned HTTP ${res.status}`);
-    const json = await res.json();
-    pages = json.page?.pages ?? 1;
-    out.push(...(json.items ?? []));
-    page++;
-  } while (page <= pages);
-  return out;
+// The watcher worker owns every connection to the game backend; this page
+// only ever asks the worker what it already knows. A single call covers the
+// whole dashboard: servers, regions, global total and the caller's continent.
+async function apiGet(path) {
+  const res = await fetch(`${WORKER_ORIGIN}${path}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`tracker API returned HTTP ${res.status}`);
+  return res.json();
 }
 
-async function fetchRegion() {
-  try {
-    const r = await fetch(`${API_BASE}/v1/region`, { cache: 'no-store' });
-    return r.ok ? await r.json() : null;
-  } catch { return null; }
+/**
+ * The worker's flat server list → the per-station shape the renderer uses.
+ * Deployments are grouped under the station that owns them.
+ */
+function stationsFromState(servers) {
+  const grouped = new Map();
+  for (const s of servers || []) {
+    const key = s.station || 'Unknown station';
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push({
+      deployment_name: s.name || '',
+      region: s.region || 'UNK',
+      online: !!s.online,
+      player_count: s.players,
+      ip: s.ip || '',
+      version: s.version || '',
+      created: s.created || '',
+      last_event: s.last_event || '',
+      config: null,        // the snapshot deliberately carries no raw config
+    });
+  }
+  return [...grouped.entries()].map(([name, deployments]) => ({
+    station_id: name,
+    station_name: name,
+    deployments,
+  }));
 }
 
 async function refresh() {
   if (state.loading) return;
   state.loading = true;
   try {
-    const [stations, region] = await Promise.all([fetchStations(), fetchRegion()]);
-    state.stations = stations;
-    state.region = region;
+    const snap = await apiGet('/api/state');
+    state.stations = stationsFromState(snap.servers);
+    state.continent = snap.continent || null;
     state.error = null;
-    state.lastUpdated = new Date();
+    state.lastUpdated = new Date(Number(snap.generated_at) || Date.now());
     if (state.historyFromServer) {
-      // Collector owns history — re-pull it so the chart keeps growing.
+      // The worker owns history — re-pull it so the chart keeps growing.
       const fresh = await loadHistoryFromServer();
       if (fresh && fresh.length) state.history = fresh;
     } else {
-      recordSample(totalPlayers(stations));
+      recordSample(totalPlayers());
     }
-    setStatus('live', region ? `${region.continent_code} · ${region.country_code}` : 'live');
+    setStatus('live', state.continent ? `${state.continent} · live` : 'live');
   } catch (err) {
     state.error = err.message;
-    setStatus(state.stations.length ? 'stale' : 'offline', state.stations.length ? 'stale data' : 'api unreachable');
+    setStatus(state.stations.length ? 'stale' : 'offline', state.stations.length ? 'stale data' : 'tracker unreachable');
   } finally {
     state.loading = false;
     state.nextRefreshAt = Date.now() + REFRESH_MS;
@@ -193,8 +214,9 @@ const ICONS = ['★', '◈', '⬢', '✦', '◎', '✧', '◆', '▲'];
 const ACCENTS = ['#ff9f43', '#4d8dff', '#2ee6c8', '#ff5da2', '#a66bff', '#3ddc97', '#ffd166', '#00d4ff'];
 
 // ---------------- rendering ----------------
-// District population data is NOT published by this API (config comes back
-// empty), so the expandable only renders if/when the API exposes it.
+// District population data is NOT published by the worker's snapshot (raw
+// config never leaves the worker), so the expandable only renders if/when the
+// snapshot ever carries it.
 function districtList(d) {
   const cfg = d.config || {};
   const src = cfg.district_populations || cfg.districts || d.district_populations || null;
@@ -309,13 +331,13 @@ function drawChart() {
 
   els.rangeStats.textContent = data.length > 1
     ? `${data.length} samples · low ${fmt(Math.min(...data.map(d => d.v)))} · high ${fmt(Math.max(...data.map(d => d.v)))}`
-    : 'history from collector — waiting for more samples';
+    : 'history from the watcher — waiting for more samples';
 
   if (data.length < 2) {
     ctx.fillStyle = '#9fb0cd';
     ctx.font = '12px "Source Code Pro", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('Collecting data — run collect.py to build history', w / 2, h / 2);
+    ctx.fillText('Collecting data — waiting on the watcher to build history', w / 2, h / 2);
     return;
   }
 

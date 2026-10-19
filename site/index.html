@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Rebirth — Live Statistics</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛰️</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <h1>Project Rebirth</h1>
+
+    <div class="row">
+      <!-- ================= LEFT: stats + about ================= -->
+      <div class="col col-stats">
+        <fieldset class="box">
+          <legend>Live Statistics</legend>
+
+          <div class="stat-header">
+            <div class="stat-item">
+              <p>Total Players Online</p>
+              <p class="value" id="totalPlayers">–</p>
+            </div>
+
+            <div class="graph-toggle" id="rangeToggle">
+              <button class="graph-toggle-btn active" data-range="24h">24 Hours</button>
+              <button class="graph-toggle-btn" data-range="7d">7 Days</button>
+              <button class="graph-toggle-btn" data-range="30d">30 Days</button>
+            </div>
+          </div>
+
+          <div class="stat-item graph-container">
+            <div class="chart-wrap">
+              <canvas id="chart"></canvas>
+              <div class="chart-tip" id="chartTip" hidden></div>
+            </div>
+            <p class="range-stats" id="rangeStats"></p>
+          </div>
+        </fieldset>
+
+        <fieldset class="box">
+          <legend>About</legend>
+          <p class="about-main">Live data from the Project Rebirth API.</p>
+          <p class="about-sub">
+            Last Updated: <span id="lastUpdated">never</span> <span id="countdown"></span>
+          </p>
+          <div class="about-actions">
+            <label class="autoswitch">
+              <input type="checkbox" id="autoRefresh" checked /> Auto-refresh
+            </label>
+            <span class="status-inline">
+              <span class="dot" id="statusDot"></span><span id="statusText">connecting…</span>
+            </span>
+          </div>
+          <p class="credit-line">Made by Bnot</p>
+        </fieldset>
+      </div>
+
+      <!-- ================= RIGHT: station widgets ================= -->
+      <div class="col widgets">
+        <p class="widgets-title">Click a station to see more info:</p>
+        <div id="stationList">
+          <div class="muted-block">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= OPS: watcher intelligence ================= -->
+    <div class="row ops-row">
+      <fieldset class="box">
+        <legend>📡 Live Feed</legend>
+        <div id="feedList" class="feed-list"><div class="muted-block">Loading…</div></div>
+      </fieldset>
+
+      <fieldset class="box">
+        <legend>🧩 Patches</legend>
+        <div id="patchRollout" class="rollout-bar"></div>
+        <div id="patchList" class="feed-list"><div class="muted-block">Loading…</div></div>
+      </fieldset>
+
+      <fieldset class="box">
+        <legend>🔄 Restarts</legend>
+        <p id="restartStats" class="ops-stat"></p>
+        <div id="restartBars" class="day-bars"></div>
+        <div id="restartList" class="feed-list"><div class="muted-block">Loading…</div></div>
+      </fieldset>
+
+      <fieldset class="box">
+        <legend>🔧 Config Drift</legend>
+        <div id="rosterBox" class="roster-box"></div>
+        <div id="configList" class="feed-list"><div class="muted-block">Loading…</div></div>
+      </fieldset>
+
+      <fieldset class="box">
+        <legend>📈 Peak Hours (UTC)</legend>
+        <div id="peakGrid" class="peak-grid"></div>
+        <div id="peakDays" class="day-bars"></div>
+        <div id="peakBest" class="peak-best"></div>
+      </fieldset>
+
+      <fieldset class="box">
+        <legend>🌍 Regions</legend>
+        <p id="adviceLine" class="advice-line"></p>
+        <div id="regionOptions" class="opt-list"></div>
+        <div id="regionList" class="feed-list"><div class="muted-block">Loading…</div></div>
+      </fieldset>
+    </div>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

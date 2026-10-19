@@ -1,0 +1,33 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "project-rebirth-tracker"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# Static site (index.html, style.css, app.js) lives here and is served
+# for every request the worker doesn't handle itself.
+# run_worker_first = true is REQUIRED: without it the asset router answers
+# unmatched paths with its own 404 before the worker runs, which breaks
+# POST /interactions (Discord's slash-command endpoint).
+[assets]
+directory = "./site"
+binding = "ASSETS"
+run_worker_first = true
+
+# KV namespace that stores player history + watcher state.
+# Create it with:  npx wrangler kv namespace create HISTORY
+# then paste the returned id below.
+[[kv_namespaces]]
+binding = "HISTORY"
+id = "2776a83f5edf498793f3f66f5d89929a"
+
+# Discord alerting (optional but recommended):
+#   npx wrangler secret put DISCORD_WEBHOOK_URL
+# Value = one or more webhook URLs (comma-separated) in the
+# "Project Rebirth test" server. Create them under
+# Server Settings → Integrations → Webhooks.
+
+# Poll the game API every 2 minutes.
+# 2-min cadence = 720 writes/day, safely under the free plan's 1,000/day cap
+# (one KV write per tick for the tracker blob; event logs only write on change).
+[triggers]
+crons = ["*/2 * * * *"]
